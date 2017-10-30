@@ -9,6 +9,8 @@
 
 using namespace std;
 
+#define PACKET_SIZE_BYTES 1000
+
 /* packet header struct */
 typedef struct header
 {
@@ -21,8 +23,16 @@ typedef struct header
 /* packet data struct */
 typedef struct Data
 {
-  char data[1000-sizeof(header)];
+  char data[PACKET_SIZE_BYTES-sizeof(header)];
 } Data;
+
+/* control data struct */
+typedef struct ControlData
+{
+  char node_ids[(PACKET_SIZE_BYTES)/2];
+  char weights[(PACKET_SIZE_BYTES)/2];
+
+} ControlData;
 
 /* ID of this Node */
 int node_id;
@@ -30,7 +40,7 @@ int node_id;
 String host_name;
 
 /* distance info for routing */
-Map<int, int>hostDistances;
+Map<int, int>NodeDistances;
 
 /* routeNodes contains mappings for the next node to route to when trying to
  * reach a destination on the network */
@@ -41,8 +51,9 @@ Map<int,int>routeNodes;
 Map<int,int>adjPorts;
 Map<int, unsigned long>adjAddrs;
 
-/* char array for holding packet data */
-char packet[1000];
+/* char array for holding data_packet data */
+char data_packet[PACKET_SIZE_BYTES];
+char control_packet[PACKET_SIZE_BYTES];
 
 sem_t dataMsgReq;
 
@@ -67,7 +78,7 @@ void dataProcess(void* input)
   sockaddr_in recieved_data, send_data;
   int recieved_len;
 
-  /* structs for parsing packet data */
+  /* structs for parsing data_packet data */
   Header header;
   Data data;
 
@@ -81,7 +92,7 @@ void dataProcess(void* input)
 
   while(1)
   {
-    memset(packet, 0, 1000);
+    memset(data_packet, 0, PACKET_SIZE_BYTES);
   
     rfds = store;
 
@@ -90,14 +101,14 @@ void dataProcess(void* input)
 
     if(FD_ISSET(sd, &rfds))
     {
-      /* recieve packet */
-      recieved_len = recvfrom(sd, (void*)packet, 1000, 0, (struct sockaddr*)&recieved_data, sizeof(sockaddr));
+      /* recieve data_packet */
+      recieved_len = recvfrom(sd, (void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&recieved_data, sizeof(sockaddr));
       
-      /* pull data out of packet for processing */
-      memcpy(&header, packet, sizeof(header));
-      memcpy(&data, packet+sizeof(header), sizeof(data))
+      /* pull data out of data_packet for processing */
+      memcpy(&header, data_packet, sizeof(header));
+      memcpy(&data, data_packet+sizeof(header), sizeof(data))
 
-     printf("Packet from: %d\nDestined for:%d\n Arrived at:%d\n TTL:%d\n", header.src_id, header.dest_id, node_id, header.ttl);
+     printf("data_packet from: %d\nDestined for:%d\n Arrived at:%d\n TTL:%d\n", header.src_id, header.dest_id, node_id, header.ttl);
 
      if(header.dest_id == node_id)
      {
@@ -115,16 +126,16 @@ void dataProcess(void* input)
       send_data.sin_port = htons(adjPorts.find(nextNode));
       send_data.sin_addr = adjAddrs.find(nextNode);
 
-      /* edit ttl of packet and add this node to list */
+      /* edit ttl of data_packet and add this node to list */
       String newData(data.data);
       newData.append(" "+atoi(node_id));
       /* copy over everything except newline character */
-      memcpy(packet+sizeof(header), newData.c_str(), newData.length-1);
+      memcpy(data_packet+sizeof(header), newData.c_str(), newData.length-1);
 
       header.ttl--;
-      memcpy(packet, header, sizeof(header));
+      memcpy(data_packet, header, sizeof(header));
 
-      sendto(sd, (const void*)packet, 1000, 0, (struct sockaddr*)&send_data, sizeof(sockaddr));
+      sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_data, sizeof(sockaddr));
 
      }
     }
@@ -134,10 +145,57 @@ void dataProcess(void* input)
 void controlProcess(void* input)
 {
   int sd = createSock(input);
+  int recieved_len, itr, rec_id, itr;
+  struct sockaddr_in recieved_data;
 
+  ControlData data;
+
+  /* set up fd_sets*/
+  fd_set rfds, store;
+
+  FD_ZERO(&rfds);
+  FD_ZERO(&store);
+
+  FD_SET(sd, &store);
+  
   while(1)
   {
+    memset(control_packet, 0, PACKET_SIZE_BYTES);
+    
+    rfds = store;
 
+    /* check for incoming meesages */
+    select(sd+1, &rfds, NULL, NULL, NULL);
+
+    if(FD_ISSET(sd, &rfds))
+    {
+      /* recieve data_packet */
+      recieved_len = recvfrom(sd, (void*)control_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&recieved_data, sizeof(sockaddr));
+     
+      /* need to figure out the ID of the sending node */
+      Iterator<int,unsigned int> iter = adjAddrs.begin();
+      
+      for(; iter != adjAddrs.end(); ++iter)
+      {
+        if(iter->second = recieved_data.sin_addr.s_addr)
+        {
+          rec_id = iter->first;
+          break;
+        }
+      }
+      memcpy(data, control_packet, PACKET_SIZE_BYTES);
+
+      /* determine if the new control packet offers us any shorter paths */
+      itr = 0;
+      while(data.node_ids[itr] != -1)
+      {
+       int temp_id = data.node_ids[itr];
+
+       if(routeNodes.find(temp_id) == routeNodes.end() || 
+          rec_id = routeNodes.find(temp_id)->second || 
+          (data.weights[itr]+1) < )
+      }
+    }
   }
 }
 
