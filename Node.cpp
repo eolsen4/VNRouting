@@ -191,9 +191,19 @@ void controlProcess(void* input)
       {
        int temp_id = data.node_ids[itr];
 
-       if(routeNodes.find(temp_id) == routeNodes.end() || 
-          rec_id = routeNodes.find(temp_id)->second || 
-          (data.weights[itr]+1) < )
+       /* if we don't already have a path to the node, or the path through the
+        * old intermediary was overwritten, or this new path is shorter,
+        * update */
+       if(routeNodes.find(temp_id) == routeNodes.end())
+       {
+        routeNodes.insert(temp_id, rec_id);
+       }
+       else if(rec_id = routeNodes.find(temp_id)->second || 
+          (data.weights[itr]+1) < nodeDistances.find(temp_id)->second)
+       {
+          nodeDistances.find(temp_id)->second = data.weights[itr]+1;
+       }
+       itr++;
       }
     }
   }
