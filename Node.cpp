@@ -1,5 +1,5 @@
 #include<pthread.h>
-#include<semaphore.h>
+
 #include<vector>
 #include<arpa/inet.h>
 #include<cassert>
@@ -45,6 +45,9 @@ typedef struct ControlData
 
 } ControlData;
 
+/* lock for critical sections of code */
+pthread_mutex_t lock;
+
 /* ID of this Node */
 int node_id;
 /* name of host */
@@ -62,11 +65,12 @@ Map<int,int>routeNodes;
 Map<int,int>adjPorts;
 Map<int, unsigned long>adjAddrs;
 
-/* char array for holding data_packet data */
-char data_packet[PACKET_SIZE_BYTES];
-char control_packet[PACKET_SIZE_BYTES];
+/* flag for when a data message has been requested to send */
+bool sendMessage = false;
+int sentToNode;
 
-sem_t dataMsgReq;
+/* current packet id to send out */
+char pckt_id = 0;
 
 int createSock(void* input)
 {
@@ -89,8 +93,9 @@ void dataProcess(void* input)
   int sd = createSock(input);
   sockaddr_in recieved_data, send_data;
   int recieved_len;
-
+  
   /* structs for parsing data_packet data */
+  char data_packet[PACKET_SIZE_BYTES]
   Header header;
   Data data;
 
@@ -125,13 +130,23 @@ void dataProcess(void* input)
       if(header.dest_id == node_id)
       {
 
-        /* data should be formatted as a C-string so this should work */
-        printf("Forwarding path: %s\n", data.data);
+        /* print path data */
+        printf("Forwarding path: ");
+        for(int itr = 0; data.data[itr] != -1; itr++)
+          printf("%d ", data.data[itr]);
+        printf("\n");
       }
       else
       {
+
+        pthread_mutex_lock(&lock);
         /* find next node to route to */
         int nextNode = routeNodes.find(header.dest_id);
+
+        printf("Packet sent from: %d Destined for: %d Arrived at: %d Sending next to %d", header.src_id, 
+                                                                                          header.dest_id, 
+                                                                                          node_id,
+                                                                                          nextNode);
 
         /* get the port and address of the next host to send to*/
         send_data.sin_family = AF_INET;
@@ -139,17 +154,40 @@ void dataProcess(void* input)
         send_data.sin_addr = adjAddrs.find(nextNode);
 
         /* edit ttl of data_packet and add this node to list */
-        String newData(data.data);
-        newData.append(" "+atoi(node_id));
+        int itr = 0;
+        while(data.data[itr] != -1)
+          itr++;
+        
+        data.data[itr] = node_id;
+        data.data[itr+1] = -1;
+
         /* copy over everything except newline character */
-        memcpy(data_packet+sizeof(header), newData.c_str(), newData.length-1);
+        memcpy(data_packet+sizeof(header), data.data, sizeof(data));
 
         header.ttl--;
         memcpy(data_packet, header, sizeof(header));
 
-        sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_data, sizeof(sockaddr));
+        if(header.ttl > 0)
+          sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_data, sizeof(sockaddr));
 
+        pthread_mutex_unlock(&lock);
       }
+
+      pthread_mutex_lock(&lock);
+      
+      if(sendMessage)
+      {
+        memset(data_packet, 0, PACKET_SIZE_BYTES);
+        header.src_id = node_id;
+        header.dest_id = sendToNode;
+        header.packet_id = pkt_id;
+        pkt_id++;
+        header.ttl = 15;
+        
+        memset()
+      }
+      
+      pthread_mutex_unlock(&lock);
     }
   }
 }
@@ -192,6 +230,8 @@ void controlProcess(void* input)
       /* if we recieved a routing vector */
       if(ROUTING_VECTOR == header.pkt_type)
       {
+        pthread_mutex_lock(&lock);
+        
         /* need to figure out the ID of the sending node */
         Iterator<int,unsigned int> iter = adjAddrs.begin();
 
@@ -224,6 +264,8 @@ void controlProcess(void* input)
           }
           itr++;
         }
+
+        pthread_mutex_unlock(&lock);
       }
       else
       {
@@ -244,7 +286,7 @@ int main()
   pthread_t dataThread, controlThread;
 
   /* init semaphore for requesting new data message */
-  sem_init(&dataMsgReq, 0, 0);
+  pthread_mutex_init(&lock, NULL);
 
   /* TODO: input parsing to actually fill the sockaddr structs */
   struct sockaddr_in data_sockaddr, cont_sockaddr;
