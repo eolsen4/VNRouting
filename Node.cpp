@@ -77,7 +77,7 @@ void dataProcess(void* input)
   int recieved_len;
   
   /* structs for parsing data_packet data */
-  char data_packet[PACKET_SIZE_BYTES]
+  char data_packet[PACKET_SIZE_BYTES];
   Header header;
   Data data;
 

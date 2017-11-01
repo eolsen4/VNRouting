@@ -5,7 +5,8 @@ enum control_type
 {
   ROUTING_VECTOR,
   CTRL_MSG_SEND_PCKT,
-  CTRL_MSG_CREATE_LINK
+  CTRL_MSG_CREATE_LINK,
+  CTRL_MSG_REMOVE_LINK
 };
 
 /* header for control structure */
