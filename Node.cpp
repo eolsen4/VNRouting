@@ -10,12 +10,16 @@
 /* TODO Create control program to drive nodes */
 
 using namespace std;
+
+#define PACKET_SIZE_BYTES 1000
+
 enum control_type
 {
   ROUTING_VECTOR,
-  CTRL_MSG
-}
-#define PACKET_SIZE_BYTES 1000
+  CTRL_MSG_SEND_PCKT,
+  CTRL_MSG_CREATE_LINK
+};
+
 
 /* packet header struct */
 typedef struct header
@@ -67,7 +71,7 @@ Map<int, unsigned long>adjAddrs;
 
 /* flag for when a data message has been requested to send */
 bool sendMessage = false;
-int sentToNode;
+int sendToNode;
 
 /* current packet id to send out */
 char pckt_id = 0;
@@ -284,13 +288,21 @@ void controlProcess(void* input)
       }
       else
       {
-        /* TODO This is where functionality goes for recieving control
-         * messages/processing requests. These can include calling a new data
-         * message to be sent and creating a new adjacency link between nodes.
-         *  Tasks: 1) Modify existing control packet structure to handle these requests 
-         *  (try to do it using existing structure if possible) and move to shared header file
-         *         2) Create functionalities. Note: This will involve shared
-         *            variables so locking will be necessary   */
+      
+        if(CTRL_MSG_SEND_PCKT == header.pkt_type)
+        {
+          pthread_mutex_lock(&lock);
+          
+          sendMessage = true;
+          sendToNode = data.nodeIds[0];
+
+          pthread_mutex_unlock(&lock);
+        }
+        if(CTRL_MSG_CREATE_LINK == header.pkt_type)
+        {
+          /* TODO: write functionality for creating a new link. Blocked by need
+           * for input parsing function */
+        }
       }
     }
   }
