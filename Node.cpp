@@ -1,5 +1,4 @@
 #include<pthread.h>
-
 #include<vector>
 #include<arpa/inet.h>
 #include<cassert>
@@ -7,19 +6,11 @@
 #include<unistd.h>
 #include<sys/uio.h>
 
+#include"Common.hpp"
+
 /* TODO Create control program to drive nodes */
 
 using namespace std;
-
-#define PACKET_SIZE_BYTES 1000
-
-enum control_type
-{
-  ROUTING_VECTOR,
-  CTRL_MSG_SEND_PCKT,
-  CTRL_MSG_CREATE_LINK
-};
-
 
 /* packet header struct */
 typedef struct header
@@ -29,25 +20,12 @@ typedef struct header
   char pckt_id;
   char ttl;
 } header;
-
-typedef struct controlHeader
-{
-  /* what type of packet is this */
-  control_type pkt_type;
-} 
+ 
 /* packet data struct */
 typedef struct Data
 {
   char data[PACKET_SIZE_BYTES-sizeof(header)];
 } Data;
-
-/* control data struct */
-typedef struct ControlData
-{
-  char node_ids[((PACKET_SIZE_BYTES)/2)-2];
-  char weights[((PACKET_SIZE_BYTES)/2)-2];
-
-} ControlData;
 
 /* lock for critical sections of code */
 pthread_mutex_t lock;
