@@ -148,6 +148,7 @@ void dataProcess(void* input)
                                                                                           node_id,
                                                                                           nextNode);
 
+
         /* get the port and address of the next host to send to*/
         send_data.sin_family = AF_INET;
         send_data.sin_port = htons(adjPorts.find(nextNode));
@@ -184,7 +185,21 @@ void dataProcess(void* input)
         pkt_id++;
         header.ttl = 15;
         
-        memset()
+        /* clear data and add the current node id to the routing list */
+        memset(&data, 0, sizeof(data));
+        data.data[0] = node_id;
+        data.data[1] = -1;
+
+        memcpy(data_packet, &header, sizeof(header));
+        memcpy(data_packet+sizeof(header), &data, sizeof(data));
+
+        /* need to set up sockaddr struct to sent out packet */
+        /* get the port and address of the next host to send to*/
+        send_data.sin_family = AF_INET;
+        send_data.sin_port = htons(adjPorts.find(sendToNode));
+        send_data.sin_addr = adjAddrs.find(sendToNode);
+        
+        sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_data, sizeof(sockaddr));
       }
       
       pthread_mutex_unlock(&lock);
