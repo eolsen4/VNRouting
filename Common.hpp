@@ -10,11 +10,11 @@ enum control_type
 };
 
 /* header for control structure */
-typedef struct controlHeader
+typedef struct ControlHeader
 {
   /* what type of packet is this */
   control_type pkt_type;
-}
+} ControlHeader;
 
 /* control data struct */
 typedef struct ControlData
