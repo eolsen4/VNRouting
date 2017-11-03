@@ -1,3 +1,9 @@
+#ifndef COMMON_H
+#define COMMON_H
+
+#include <string>
+#include <vector>
+
 /* max packet size */
 #define PACKET_SIZE_BYTES 1000
 
@@ -23,4 +29,12 @@ typedef struct ControlData
   char weights[((PACKET_SIZE_BYTES)/2)-2];
 
 } ControlData;
+ 
+int getDataPort(std::string, int);
+int getContPort(std::string, int);
+std::string getHostname(std::string, int);
+std::vector<std::pair<int, int> > getAdjacentDataPorts(std::string, int);
+std::vector<std::pair<int, int> > getAdjacentContPorts(std::string, int);
+std::vector<std::pair<int, std::string> > getAdjacentHostnames(std::string, int);
 
+#endif

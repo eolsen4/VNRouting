@@ -4,15 +4,22 @@
 #include <arpa/inet.h>
 #include <cassert>
 #include <cstring>
-#include <cstdio>
 #include <unistd.h>
 #include <assert.h>
+#include <netdb.h>
 #include <sys/uio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/param.h>
+#include <sys/utsname.h>
 #include <map>
+#include <vector>
 
 #include "Common.hpp"
+
+using namespace std;
+
+/* TODO Create control program to drive nodes */
 
 using namespace std;
 
@@ -48,7 +55,9 @@ map<int,int>routeNodes;
 
 /* adjPorts and adjAddrs contain mappings from the node ID of adjacent nodes to
  * their respective ports and addresses */
-map<int,int>adjPorts;
+map<int, int>adjDataPorts;
+map<int, int>adjContPorts;
+map<int, string>adjHostnames;
 map<int, in_addr_t>adjAddrs;
 
 /* flag for when a data message has been requested to send */
@@ -63,12 +72,14 @@ int createSock(void* input)
   /* cast input back to sockaddr */
   struct sockaddr_in* sa = static_cast<struct sockaddr_in*>(input);
 
+  socklen_t size = sizeof(sockaddr);
+
   /* create a datagram socket */
   int retVal = socket(AF_INET, SOCK_DGRAM, 0);
 
   /* if socket doesn't bind something went very wrong */
-  if(bind(retVal, (struct sockaddr*)sa, sizeof(sa)) == -1){
-    perror("node: bind function failed");
+  if(bind(retVal, (struct sockaddr*)sa, size) == -1){
+    perror("Error: bind function in createSocket function failed");
     return -1;
   }
 
@@ -78,6 +89,7 @@ int createSock(void* input)
 /*TODO Implement locking for structures accessed on both threads. */
 static void* dataProcess(void* input)
 {
+  cout << "Data process starting yo" << endl;
   /* create socket */
   int sd = createSock(input);
   sockaddr_in recieved_data, send_data;
@@ -142,7 +154,7 @@ static void* dataProcess(void* input)
 
         /* get the port and address of the next host to send to*/
         send_data.sin_family = AF_INET;
-        send_data.sin_port = htons(adjPorts.at(nextNode));
+        send_data.sin_port = htons(adjDataPorts.at(nextNode));
         send_data.sin_addr.s_addr = adjAddrs.at(nextNode);
 
         /* edit ttl of data_packet and add this node to list */
@@ -187,7 +199,7 @@ static void* dataProcess(void* input)
         /* need to set up sockaddr struct to sent out packet */
         /* get the port and address of the next host to send to*/
         send_data.sin_family = AF_INET;
-        send_data.sin_port = htons(adjPorts.at(sendToNode));
+        send_data.sin_port = htons(adjDataPorts.at(sendToNode));
         send_data.sin_addr.s_addr = adjAddrs.at(sendToNode);
         
         sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_data, sizeof(sockaddr));
@@ -315,15 +327,51 @@ int main(int argc, char **argv)
   /* TODO: input parsing to actually fill the sockaddr structs */
   struct sockaddr_in data_sockaddr, cont_sockaddr;
 
-  /*data_sockaddr.sin_family = AF_INET;
-  data_sockaddr.sin_port = htons(data_port));
-  data_sockaddr.sin_addr.s_addr = data_addr;
+  string filename = argv[1];
+  int node = atoi(argv[2]);
+
+  /* retrieves the current node's hostname, control port, and data port */
+  string hostname = getHostname(filename, node);
+  int data_port = getDataPort(filename, node);
+  int cont_port = getContPort(filename, node);
+
+  /* retrieves the adjacent nodes' hostnames, data ports, and control ports */
+  vector<pair<int, int> > adjacent_data_ports = getAdjacentDataPorts(filename, node);
+  vector<pair<int, int> > adjacent_cont_ports = getAdjacentContPorts(filename, node);
+  vector<pair<int, string> > adjacent_hostnames = getAdjacentHostnames(filename, node);
+
+  /* initializes the map for adjacent nodes' hostnames, data ports, and control ports */
+  for(int i = 0; i < adjacent_data_ports.size(); ++i){
+    adjDataPorts.insert(adjacent_data_ports[i]);
+    adjContPorts.insert(adjacent_cont_ports[i]);
+    adjHostnames.insert(adjacent_hostnames[i]);
+  }
+
+
+  struct hostent *name;
+  if ((name = gethostbyname(hostname.c_str())) == NULL){
+    perror("utils: gethostbyname fucntion error");
+    exit(1);
+  }
+
+  memset(&data_sockaddr, 0, sizeof(data_sockaddr));
+  data_sockaddr.sin_family = AF_INET;
+  data_sockaddr.sin_port = htons(data_port);
+  data_sockaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+  //memcpy((void *)&data_sockaddr.sin_addr, name->h_addr_list[0], name->h_length);
 
   cont_sockaddr.sin_family = AF_INET;
   cont_sockaddr.sin_port = htons(cont_port);
-  cont_sockaddr.sin_addr.s_addr = cont_addr;*/
+  memcpy((void *)&cont_sockaddr.sin_addr, name->h_addr_list[0], name->h_length);
+
 
   /* create threads for data and control message processing */
-  pthread_create(&dataThread, NULL, dataProcess, (void*)&data_sockaddr);
-  pthread_create(&controlThread, NULL, controlProcess, (void*)&cont_sockaddr);
+  int ret = pthread_create(&dataThread, NULL, dataProcess, (void*)&data_sockaddr);
+  pthread_join(dataThread, NULL);
+  if(ret != 0)
+  {
+    printf("Error: pthread_create failed");
+    exit(1);
+  }
+  //pthread_create(&controlThread, NULL, controlProcess, (void*)&cont_sockaddr);
 }
