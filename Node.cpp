@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include <cassert>
 #include <cstring>
+#include <cstdio>
 #include <unistd.h>
 #include <assert.h>
 #include <sys/uio.h>
@@ -12,10 +13,6 @@
 #include <map>
 
 #include "Common.hpp"
-
-using namespace std;
-
-/* TODO Create control program to drive nodes */
 
 using namespace std;
 
