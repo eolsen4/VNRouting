@@ -11,7 +11,7 @@ using namespace std;
 /* function to get the data port number for a specific node in the given file and node number */
 int getDataPort(string filename, int node){
     string line;
-    ifstream file(filename);
+    ifstream file(filename.c_str());
 
     int found_node;
     int data_port = 0;
@@ -33,7 +33,7 @@ int getDataPort(string filename, int node){
 /* function to get the control port number for a specific node in the given file and node number */
 int getContPort(string filename, int node){
     string line;
-    ifstream file(filename);
+    using namespace std;ifstream file(filename.c_str());
 
     int found_node;
     int cont_port = 0;

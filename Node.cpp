@@ -2,6 +2,8 @@
 #include <pthread.h>
 #include <vector>
 #include <arpa/inet.h>
+#include <cstdlib>
+#include <cstdio>
 #include <cassert>
 #include <cstring>
 #include <unistd.h>
@@ -89,7 +91,10 @@ int createSock(void* input)
 /*TODO Implement locking for structures accessed on both threads. */
 static void* dataProcess(void* input)
 {
+#ifdef DEBUG
   cout << "Data process starting yo" << endl;
+#endif
+
   /* create socket */
   int sd = createSock(input);
   sockaddr_in recieved_data, send_data;
@@ -345,6 +350,12 @@ int main(int argc, char **argv)
     adjDataPorts.insert(adjacent_data_ports[i]);
     adjContPorts.insert(adjacent_cont_ports[i]);
     adjHostnames.insert(adjacent_hostnames[i]);
+#ifdef DEBUG
+    printf("Adjacent Node: %d: hostname: %s, data port:%d, control port:%d\n", adjacent_data_ports[i].first,
+                                                                               adjacent_hostnames[i].second.c_str(),
+                                                                               adjacent_data_ports[i].second,
+                                                                               adjacent_cont_ports[i].second);
+#endif
   }
 
 
@@ -366,12 +377,19 @@ int main(int argc, char **argv)
 
 
   /* create threads for data and control message processing */
-  int ret = pthread_create(&dataThread, NULL, dataProcess, (void*)&data_sockaddr);
+  int dataRet = pthread_create(&dataThread, NULL, dataProcess, (void*)&data_sockaddr);
+  int contRet = pthread_create(&controlThread, NULL, controlProcess, (void*)&cont_sockaddr);
+
   pthread_join(dataThread, NULL);
-  if(ret != 0)
+  if(dataRet != 0)
   {
     printf("Error: pthread_create failed");
     exit(1);
   }
-  //pthread_create(&controlThread, NULL, controlProcess, (void*)&cont_sockaddr);
-}
+  pthread_join(controlThread, NULL);
+  if(dataRet != 0)
+  {
+    printf("Error: pthread_create failed");
+    exit(1);
+  }
+  }
