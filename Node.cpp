@@ -16,14 +16,13 @@
 #include <sys/utsname.h>
 #include <map>
 #include <vector>
+#include <time.h>
 
 #include "Common.hpp"
 
 using namespace std;
 
 /* TODO Create control program to drive nodes */
-
-using namespace std;
 
 /* packet header struct */
 typedef struct Header
@@ -33,7 +32,7 @@ typedef struct Header
   char pckt_id;
   char ttl;
 } Header;
- 
+
 /* packet data struct */
 typedef struct Data
 {
@@ -60,7 +59,6 @@ map<int,int>routeNodes;
 map<int, int>adjDataPorts;
 map<int, int>adjContPorts;
 map<int, string>adjHostnames;
-map<int, in_addr_t>adjAddrs;
 
 /* flag for when a data message has been requested to send */
 bool sendMessage = false;
@@ -88,7 +86,6 @@ int createSock(void* input)
   return retVal;
 }
 
-/*TODO Implement locking for structures accessed on both threads. */
 static void* dataProcess(void* input)
 {
 #ifdef DEBUG
@@ -99,7 +96,7 @@ static void* dataProcess(void* input)
   int sd = createSock(input);
   sockaddr_in recieved_data, send_data;
   int recieved_len;
-  
+
   /* structs for parsing data_packet data */
   char data_packet[PACKET_SIZE_BYTES];
   Header header;
@@ -121,8 +118,13 @@ static void* dataProcess(void* input)
 
     socklen_t size = sizeof(sockaddr); 
 
+    /* set a timeout for select */
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+
     /* check for incoming meesages */
-    select(sd+1, &rfds, NULL, NULL, NULL);
+    select(sd+1, &rfds, NULL, NULL, &tv);
 
     if(FD_ISSET(sd, &rfds))
     {
@@ -152,21 +154,21 @@ static void* dataProcess(void* input)
         int nextNode = routeNodes.at(header.dest_id);
 
         printf("Packet sent from: %d Destined for: %d Arrived at: %d Sending next to %d", header.src_id, 
-                                                                                          header.dest_id, 
-                                                                                          node_id,
-                                                                                          nextNode);
+            header.dest_id, 
+            node_id,
+            nextNode);
 
 
         /* get the port and address of the next host to send to*/
         send_data.sin_family = AF_INET;
         send_data.sin_port = htons(adjDataPorts.at(nextNode));
-        send_data.sin_addr.s_addr = adjAddrs.at(nextNode);
+        //send_data.sin_addr.s_addr = adjAddrs.at(nextNode);
 
         /* edit ttl of data_packet and add this node to list */
         int itr = 0;
         while(data.data[itr] != -1)
           itr++;
-        
+
         data.data[itr] = node_id;
         data.data[itr+1] = -1;
 
@@ -183,7 +185,7 @@ static void* dataProcess(void* input)
       }
 
       pthread_mutex_lock(&dataLock);
-      
+
       if(sendMessage)
       {
         memset(data_packet, 0, PACKET_SIZE_BYTES);
@@ -192,7 +194,7 @@ static void* dataProcess(void* input)
         header.pckt_id = pckt_id;
         pckt_id++;
         header.ttl = 15;
-        
+
         /* clear data and add the current node id to the routing list */
         memset(&data, 0, sizeof(data));
         data.data[0] = node_id;
@@ -205,11 +207,11 @@ static void* dataProcess(void* input)
         /* get the port and address of the next host to send to*/
         send_data.sin_family = AF_INET;
         send_data.sin_port = htons(adjDataPorts.at(sendToNode));
-        send_data.sin_addr.s_addr = adjAddrs.at(sendToNode);
-        
+        //send_data.sin_addr.s_addr = adjAddrs.at(sendToNode);
+
         sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_data, sizeof(sockaddr));
       }
-      
+
       pthread_mutex_unlock(&dataLock);
     }
   }
@@ -219,7 +221,7 @@ static void* controlProcess(void* input)
 {
   int sd = createSock(input);
   int recieved_len, itr, rec_id;
-  struct sockaddr_in recieved_data;
+  struct sockaddr_in recieved_data, send_data;
 
   char control_packet[PACKET_SIZE_BYTES];
 
@@ -234,6 +236,15 @@ static void* controlProcess(void* input)
 
   FD_SET(sd, &store);
 
+  /* set timer for sending vectors */
+  time_t start, end;
+  start = time(0);
+
+#ifdef DEBUG
+  /* testing data message requests */
+  time_t testMsg = time(0);
+#endif
+
   while(1)
   {
     memset(control_packet, 0, PACKET_SIZE_BYTES);
@@ -242,14 +253,22 @@ static void* controlProcess(void* input)
 
     socklen_t size = sizeof(sockaddr);
 
+    /* set a timeout for select */
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+
     /* check for incoming meesages */
-    select(sd+1, &rfds, NULL, NULL, NULL);
+    select(sd+1, &rfds, NULL, NULL, &tv);
 
     if(FD_ISSET(sd, &rfds))
     {
       /* recieve data_packet */
       recieved_len = recvfrom(sd, (void*)control_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&recieved_data, &size);
 
+#ifdef DEBUG
+      printf("recieved a control message\n");
+#endif
       /* parse out packet data into header and data structs */
       memcpy(&header, control_packet, sizeof(header));
       memcpy(&data, control_packet+sizeof(header), PACKET_SIZE_BYTES-sizeof(header));
@@ -258,37 +277,47 @@ static void* controlProcess(void* input)
       if(ROUTING_VECTOR == header.pkt_type)
       {
         pthread_mutex_lock(&dataLock);
-        
+
         /* need to figure out the ID of the sending node */
+#if 0
         map<int, in_addr_t>::iterator iter = adjAddrs.begin();
 
         for(; iter != adjAddrs.end(); ++iter)
         {
           if(iter->second == recieved_data.sin_addr.s_addr)
-          //if(iter->second == inet_ntoa(recieved_data.sin_addr)
+            //if(iter->second == inet_ntoa(recieved_data.sin_addr)
           {
             rec_id = iter->first;
             break;
           }
         }
-
+#endif
+        rec_id = header.sending_node;
+#ifdef DEBUG
+        printf("Recieved from: %d\n", rec_id);
+#endif
         /* determine if the new control packet offers us any shorter paths */
         itr = 0;
         while(data.node_ids[itr] != -1)
         {
           int temp_id = data.node_ids[itr];
 
+#ifdef DEBUG
+        printf("node in routing table: %d\n", temp_id);
+#endif
           /* if we don't already have a path to the node, or the path through the
            * old intermediary was overwritten, or this new path is shorter,
            * update */
           if(routeNodes.find(temp_id) == routeNodes.end())
           {
             routeNodes.insert(pair<int,int>(temp_id, rec_id));
+            nodeDistances.insert(pair<int,int>(temp_id, data.weights[itr]+1));
           }
           else if(rec_id == routeNodes.find(temp_id)->second || 
               (data.weights[itr]+1) < nodeDistances.find(temp_id)->second)
           {
             nodeDistances.find(temp_id)->second = data.weights[itr]+1;
+            routeNodes.find(temp_id)->second = rec_id;
           }
           itr++;
         }
@@ -297,11 +326,11 @@ static void* controlProcess(void* input)
       }
       else
       {
-      
+
         if(CTRL_MSG_SEND_PCKT == header.pkt_type)
         {
           pthread_mutex_lock(&dataLock);
-          
+
           sendMessage = true;
           sendToNode = data.node_ids[0];
 
@@ -314,6 +343,69 @@ static void* controlProcess(void* input)
         }
       }
     }
+
+    /* check if time to send vector */
+    end = time(0);
+    if(difftime(end, start)*1000 > 2)
+    {
+      start = end;
+      map<int,int>::iterator iter = adjContPorts.begin();
+
+      /* need to set up the packet */
+      ControlHeader header;
+      ControlData data;
+      header.pkt_type = ROUTING_VECTOR;
+      header.sending_node = node_id;
+
+      memset(&data, 0, sizeof(data));
+
+      int index = 0;
+      for(map<int,int>::iterator iter2 = nodeDistances.begin(); iter2 != nodeDistances.end(); ++iter2, ++index)
+      {
+        data.node_ids[index] = iter2->first;
+        data.weights[index] = iter2->second;
+#ifdef DEBUG
+        printf("Node: %d, Distance: %d\n", data.node_ids[index], data.weights[index]);
+#endif
+      }
+      /* use -1 as end flag*/
+      data.node_ids[index] = -1;
+
+      /* zero out packet and fill it */
+      memset(control_packet, 0, PACKET_SIZE_BYTES);
+      memcpy(control_packet, &header, sizeof(header));
+      memcpy(control_packet+sizeof(header), &data, sizeof(data));
+
+      while(iter != adjContPorts.end())
+      {
+        /* need to set up sockaddr struct to sent out packet */
+        /* get the port and address of the next host to send to*/
+        send_data.sin_family = AF_INET;
+        send_data.sin_port = htons(iter->second);
+
+        /* gets info about the node being sent to based on the host name */
+        struct hostent* hInfo = gethostbyname(adjHostnames.find(iter->first)->second.c_str());
+
+#ifdef DEBUG
+        printf("Hostname: %s, Port: %d\n", adjHostnames.find(iter->first)->second.c_str(), iter->second);
+#endif 
+        memcpy(&send_data.sin_addr, hInfo->h_addr, hInfo->h_length);
+
+        sendto(sd, (const void*)control_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_data, sizeof(sockaddr));
+      
+        ++iter;
+      }
+    }
+#ifdef DEBUG
+  /* until we are capable of sending control messages from program, use this to
+   * test data thread */
+   if(difftime(end, testMsg))
+   {
+    testMsg = end;
+    sendMessage = true;
+    sendToNode = 5;
+   } 
+#endif
   }
 }
 
@@ -333,31 +425,34 @@ int main(int argc, char **argv)
   struct sockaddr_in data_sockaddr, cont_sockaddr;
 
   string filename = argv[1];
-  int node = atoi(argv[2]);
+  node_id = atoi(argv[2]);
 
   /* retrieves the current node's hostname, control port, and data port */
-  string hostname = getHostname(filename, node);
-  int data_port = getDataPort(filename, node);
-  int cont_port = getContPort(filename, node);
+  string hostname = getHostname(filename, node_id);
+  int data_port = getDataPort(filename, node_id);
+  int cont_port = getContPort(filename, node_id);
 
   /* retrieves the adjacent nodes' hostnames, data ports, and control ports */
-  vector<pair<int, int> > adjacent_data_ports = getAdjacentDataPorts(filename, node);
-  vector<pair<int, int> > adjacent_cont_ports = getAdjacentContPorts(filename, node);
-  vector<pair<int, string> > adjacent_hostnames = getAdjacentHostnames(filename, node);
+  vector<pair<int, int> > adjacent_data_ports = getAdjacentDataPorts(filename, node_id);
+  vector<pair<int, int> > adjacent_cont_ports = getAdjacentContPorts(filename, node_id);
+  vector<pair<int, string> > adjacent_hostnames = getAdjacentHostnames(filename, node_id);
 
   /* initializes the map for adjacent nodes' hostnames, data ports, and control ports */
   for(int i = 0; i < adjacent_data_ports.size(); ++i){
     adjDataPorts.insert(adjacent_data_ports[i]);
     adjContPorts.insert(adjacent_cont_ports[i]);
     adjHostnames.insert(adjacent_hostnames[i]);
+    nodeDistances.insert(make_pair(adjacent_data_ports[i].first, 1));
+    routeNodes.insert(make_pair(adjacent_data_ports[i].first, node_id));
 #ifdef DEBUG
     printf("Adjacent Node: %d: hostname: %s, data port:%d, control port:%d\n", adjacent_data_ports[i].first,
-                                                                               adjacent_hostnames[i].second.c_str(),
-                                                                               adjacent_data_ports[i].second,
-                                                                               adjacent_cont_ports[i].second);
+        adjacent_hostnames[i].second.c_str(),
+        adjacent_data_ports[i].second,
+        adjacent_cont_ports[i].second);
 #endif
   }
-
+  /* add self to nodeDistance map */
+  routeNodes.insert(pair<int, int>(node_id, 0));
 
   struct hostent *name;
   if ((name = gethostbyname(hostname.c_str())) == NULL){
@@ -392,4 +487,4 @@ int main(int argc, char **argv)
     printf("Error: pthread_create failed");
     exit(1);
   }
-  }
+}

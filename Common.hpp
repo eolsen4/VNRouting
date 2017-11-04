@@ -20,6 +20,8 @@ typedef struct ControlHeader
 {
   /* what type of packet is this */
   control_type pkt_type;
+  /* who sent it */
+  int sending_node;
 } ControlHeader;
 
 /* control data struct */
