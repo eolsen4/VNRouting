@@ -213,14 +213,20 @@ static void* dataProcess(void* input)
       /* need to set up sockaddr struct to sent out packet */
       /* get the port and address of the next host to send to*/
       send_data.sin_family = AF_INET;
-      send_data.sin_port = htons(adjDataPorts.at(sendToNode));
-      //send_data.sin_addr.s_addr = adjAddrs.at(sendToNode);
 
-      /* gets info about the node being sent to based on the host name */
-      struct hostent* hInfo = gethostbyname(adjHostnames.find(sendToNode)->second.c_str());
+      /* determine where to send the message next */
+      int nextHop = routeNodes.find(sendToNode)->second;
 
 #ifdef DATADEBUG
-      printf("Hostname: %s, Port: %d\n", adjHostnames.find(sendToNode)->second.c_str(), adjDataPorts.at(sendToNode));
+      printf("Dest:%d, next node to hop to: %d\n", sendToNode, nextHop);
+#endif
+      send_data.sin_port = htons(adjDataPorts.at(nextHop)); 
+
+      /* gets info about the node being sent to based on the host name */
+      struct hostent* hInfo = gethostbyname(adjHostnames.find(nextHop)->second.c_str());
+
+#ifdef DATADEBUG
+      printf("Hostname: %s, Port: %d\n", adjHostnames.find(nextHop)->second.c_str(), adjDataPorts.at(nextHop));
 #endif 
       memcpy(&send_data.sin_addr, hInfo->h_addr, hInfo->h_length);
 
@@ -293,20 +299,8 @@ static void* controlProcess(void* input)
         pthread_mutex_lock(&dataLock);
 
         /* need to figure out the ID of the sending node */
-#if 0
-        map<int, in_addr_t>::iterator iter = adjAddrs.begin();
-
-        for(; iter != adjAddrs.end(); ++iter)
-        {
-          if(iter->second == recieved_data.sin_addr.s_addr)
-            //if(iter->second == inet_ntoa(recieved_data.sin_addr)
-          {
-            rec_id = iter->first;
-            break;
-          }
-        }
-#endif
         rec_id = header.sending_node;
+
 #ifdef CONTDEBUG
         printf("Recieved from: %d\n", rec_id);
 #endif
@@ -392,6 +386,9 @@ static void* controlProcess(void* input)
 
       while(iter != adjContPorts.end())
       {
+#ifdef CONTDEBUG
+        printf("Sending routing vector to node: %d\n", iter->first);
+#endif
         /* need to set up sockaddr struct to sent out packet */
         /* get the port and address of the next host to send to*/
         send_data.sin_family = AF_INET;
@@ -418,7 +415,7 @@ static void* controlProcess(void* input)
       printf("request for data message generated\n");
       testMsg = end;
       sendMessage = true;
-      sendToNode = 5;
+      sendToNode = 3;
     } 
 #endif
   }
@@ -467,7 +464,8 @@ int main(int argc, char **argv)
 #endif
   }
   /* add self to nodeDistance map */
-  routeNodes.insert(pair<int, int>(node_id, 0));
+  nodeDistances.insert(pair<int, int>(node_id, 0));
+  routeNodes.insert(pair<int,int>(node_id,node_id));
 
   struct hostent *name;
   if ((name = gethostbyname(hostname.c_str())) == NULL){
