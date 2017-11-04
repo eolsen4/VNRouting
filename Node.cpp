@@ -88,7 +88,7 @@ int createSock(void* input)
 
 static void* dataProcess(void* input)
 {
-#ifdef DEBUG
+#ifdef DATADEBUG
   cout << "Data process starting yo" << endl;
 #endif
 
@@ -183,37 +183,51 @@ static void* dataProcess(void* input)
 
         pthread_mutex_unlock(&dataLock);
       }
-
-      pthread_mutex_lock(&dataLock);
-
-      if(sendMessage)
-      {
-        memset(data_packet, 0, PACKET_SIZE_BYTES);
-        header.src_id = node_id;
-        header.dest_id = sendToNode;
-        header.pckt_id = pckt_id;
-        pckt_id++;
-        header.ttl = 15;
-
-        /* clear data and add the current node id to the routing list */
-        memset(&data, 0, sizeof(data));
-        data.data[0] = node_id;
-        data.data[1] = -1;
-
-        memcpy(data_packet, &header, sizeof(header));
-        memcpy(data_packet+sizeof(header), &data, sizeof(data));
-
-        /* need to set up sockaddr struct to sent out packet */
-        /* get the port and address of the next host to send to*/
-        send_data.sin_family = AF_INET;
-        send_data.sin_port = htons(adjDataPorts.at(sendToNode));
-        //send_data.sin_addr.s_addr = adjAddrs.at(sendToNode);
-
-        sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_data, sizeof(sockaddr));
-      }
-
-      pthread_mutex_unlock(&dataLock);
     }
+    pthread_mutex_lock(&dataLock);
+
+    if(sendMessage)
+    {
+
+#ifdef DATADEBUG
+      printf("Recieved a message request to send to %d\n", sendToNode);
+#endif
+      /* reset */
+      sendMessage = false;
+
+      memset(data_packet, 0, PACKET_SIZE_BYTES);
+      header.src_id = node_id;
+      header.dest_id = sendToNode;
+      header.pckt_id = pckt_id;
+      pckt_id++;
+      header.ttl = 15;
+
+      /* clear data and add the current node id to the routing list */
+      memset(&data, 0, sizeof(data));
+      data.data[0] = node_id;
+      data.data[1] = -1;
+
+      memcpy(data_packet, &header, sizeof(header));
+      memcpy(data_packet+sizeof(header), &data, sizeof(data));
+
+      /* need to set up sockaddr struct to sent out packet */
+      /* get the port and address of the next host to send to*/
+      send_data.sin_family = AF_INET;
+      send_data.sin_port = htons(adjDataPorts.at(sendToNode));
+      //send_data.sin_addr.s_addr = adjAddrs.at(sendToNode);
+
+      /* gets info about the node being sent to based on the host name */
+      struct hostent* hInfo = gethostbyname(adjHostnames.find(sendToNode)->second.c_str());
+
+#ifdef DATADEBUG
+      printf("Hostname: %s, Port: %d\n", adjHostnames.find(sendToNode)->second.c_str(), adjDataPorts.at(sendToNode));
+#endif 
+      memcpy(&send_data.sin_addr, hInfo->h_addr, hInfo->h_length);
+
+      sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_data, sizeof(sockaddr));
+    }
+
+    pthread_mutex_unlock(&dataLock);
   }
 }
 
@@ -240,7 +254,7 @@ static void* controlProcess(void* input)
   time_t start, end;
   start = time(0);
 
-#ifdef DEBUG
+#ifdef DATADEBUG
   /* testing data message requests */
   time_t testMsg = time(0);
 #endif
@@ -266,7 +280,7 @@ static void* controlProcess(void* input)
       /* recieve data_packet */
       recieved_len = recvfrom(sd, (void*)control_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&recieved_data, &size);
 
-#ifdef DEBUG
+#ifdef CONTDEBUG
       printf("recieved a control message\n");
 #endif
       /* parse out packet data into header and data structs */
@@ -293,7 +307,7 @@ static void* controlProcess(void* input)
         }
 #endif
         rec_id = header.sending_node;
-#ifdef DEBUG
+#ifdef CONTDEBUG
         printf("Recieved from: %d\n", rec_id);
 #endif
         /* determine if the new control packet offers us any shorter paths */
@@ -302,8 +316,8 @@ static void* controlProcess(void* input)
         {
           int temp_id = data.node_ids[itr];
 
-#ifdef DEBUG
-        printf("node in routing table: %d\n", temp_id);
+#ifdef CONTDEBUG
+          printf("node in routing table: %d\n", temp_id);
 #endif
           /* if we don't already have a path to the node, or the path through the
            * old intermediary was overwritten, or this new path is shorter,
@@ -364,7 +378,7 @@ static void* controlProcess(void* input)
       {
         data.node_ids[index] = iter2->first;
         data.weights[index] = iter2->second;
-#ifdef DEBUG
+#ifdef CONTDEBUG
         printf("Node: %d, Distance: %d\n", data.node_ids[index], data.weights[index]);
 #endif
       }
@@ -386,25 +400,26 @@ static void* controlProcess(void* input)
         /* gets info about the node being sent to based on the host name */
         struct hostent* hInfo = gethostbyname(adjHostnames.find(iter->first)->second.c_str());
 
-#ifdef DEBUG
+#ifdef CONTDEBUG
         printf("Hostname: %s, Port: %d\n", adjHostnames.find(iter->first)->second.c_str(), iter->second);
 #endif 
         memcpy(&send_data.sin_addr, hInfo->h_addr, hInfo->h_length);
 
         sendto(sd, (const void*)control_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_data, sizeof(sockaddr));
-      
+
         ++iter;
       }
     }
-#ifdef DEBUG
-  /* until we are capable of sending control messages from program, use this to
-   * test data thread */
-   if(difftime(end, testMsg))
-   {
-    testMsg = end;
-    sendMessage = true;
-    sendToNode = 5;
-   } 
+#ifdef DATADEBUG
+    /* until we are capable of sending control messages from program, use this to
+     * test data thread */
+    if(node_id == 1 && difftime(end, testMsg) * 1000 > 5)
+    {
+      printf("request for data message generated\n");
+      testMsg = end;
+      sendMessage = true;
+      sendToNode = 5;
+    } 
 #endif
   }
 }
@@ -444,7 +459,7 @@ int main(int argc, char **argv)
     adjHostnames.insert(adjacent_hostnames[i]);
     nodeDistances.insert(make_pair(adjacent_data_ports[i].first, 1));
     routeNodes.insert(make_pair(adjacent_data_ports[i].first, node_id));
-#ifdef DEBUG
+#ifdef CONTDEBUG
     printf("Adjacent Node: %d: hostname: %s, data port:%d, control port:%d\n", adjacent_data_ports[i].first,
         adjacent_hostnames[i].second.c_str(),
         adjacent_data_ports[i].second,
