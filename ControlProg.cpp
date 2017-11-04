@@ -25,16 +25,18 @@ int main(int argc, char **argv)
   /* TODO Read in port/address info for each Node in network */
 
   string filename = argv[1];
-  
+
   vector<pair<int, int> > control_ports = getAllContPorts(filename);
   vector<pair<int, string> > node_hostnames = getAllHostnames(filename);
-  
+
   for(int i = 0; i < control_ports.size(); ++i)
   {
     ports.insert(control_ports[i]);
     hostnames.insert(node_hostnames[i]);
+#ifdef CONTDEBUG
     cout << control_ports[i].first << " " << control_ports[i].second << endl;
     cout << node_hostnames[i].first << " " << node_hostnames[i].second << endl;
+#endif
   }
 
   struct sockaddr_in send_sock, send_data;
@@ -46,17 +48,17 @@ int main(int argc, char **argv)
   cont_sockaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
   int sd = createSock((void*)&cont_sockaddr);
-  
+
   ControlHeader header;
   ControlData data;
-  
+
   char data_packet[PACKET_SIZE_BYTES];
 
   while(1)
   {
     string input, command, unused_data;
     int node1, node2;
-  
+
     cout << "Enter Command: ";
     getline(cin, input);
     cout << input << endl;
@@ -74,19 +76,27 @@ int main(int argc, char **argv)
     {
       if(command == "generate-packet")
       {
-	memset(data_packet, 0, PACKET_SIZE_BYTES);
-	header.pkt_type = CTRL_MSG_SEND_PCKT;
-	data.node_ids[0] = node2;
-	
-	send_sock.sin_family = AF_INET;
-	send_sock.sin_port = htons(ports.at(node1));
+        memset(data_packet, 0, PACKET_SIZE_BYTES);
+        header.pkt_type = CTRL_MSG_SEND_PCKT;
+        data.node_ids[0] = node2;
 
-	struct hostent* hInfo = gethostbyname(hostnames.at(node1).c_str());
+        send_sock.sin_family = AF_INET;
+        send_sock.sin_port = htons(ports.at(node1));
 
-	memcpy(&send_sock.sin_addr, hInfo->h_addr, hInfo->h_length);
+#ifdef CONTDEBUG
+        printf("node1: %d, port: %d\n", node1, ports.at(node1));
+#endif
 
-	cout << "heyo from controlprog" << endl;
-	sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_sock, sizeof(sockaddr));
+        struct hostent* hInfo = gethostbyname(hostnames.at(node1).c_str());
+
+        memcpy(&send_sock.sin_addr, hInfo->h_addr, hInfo->h_length);
+
+        memset(data_packet, 0, PACKET_SIZE_BYTES);
+        memcpy(data_packet, &header, sizeof(header));
+        memcpy(data_packet+sizeof(header), &data, sizeof(data));
+
+
+        sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_sock, sizeof(sockaddr));
 
       }
       else if(command == "create-link")
@@ -99,7 +109,7 @@ int main(int argc, char **argv)
       }
       else /* needs to give a valid request */
       {
-	cout << "Please give a valid request: generate-packet, create-link, or remove-link" << endl;
+        cout << "Please give a valid request: generate-packet, create-link, or remove-link" << endl;
       }
     } 
   }

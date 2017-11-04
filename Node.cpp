@@ -135,7 +135,7 @@ static void* dataProcess(void* input)
         /* find next node to route to */
         int nextNode = routeNodes.at(header.dest_id);
 
-        printf("Packet sent from: %d Destined for: %d Arrived at: %d Sending next to %d", header.src_id, 
+        printf("Packet sent from: %d Destined for: %d Arrived at: %d Sending next to %d\n", header.src_id, 
             header.dest_id, 
             node_id,
             nextNode);
@@ -143,8 +143,21 @@ static void* dataProcess(void* input)
 
         /* get the port and address of the next host to send to*/
         send_data.sin_family = AF_INET;
-        send_data.sin_port = htons(adjDataPorts.at(nextNode));
-        //send_data.sin_addr.s_addr = adjAddrs.at(nextNode);
+        /* determine where to send the message next */
+        int nextHop = routeNodes.find(header.dest_id)->second;
+
+#ifdef DATADEBUG
+        printf("Dest:%d, next node to hop to: %d\n", header.dest_id, nextHop);
+#endif
+        send_data.sin_port = htons(adjDataPorts.at(nextHop)); 
+
+        /* gets info about the node being sent to based on the host name */
+        struct hostent* hInfo = gethostbyname(adjHostnames.find(nextHop)->second.c_str());
+
+#ifdef DATADEBUG
+        printf("Hostname: %s, Port: %d\n", adjHostnames.find(nextHop)->second.c_str(), adjDataPorts.at(nextHop));
+#endif 
+        memcpy(&send_data.sin_addr, hInfo->h_addr, hInfo->h_length);
 
         /* edit ttl of data_packet and add this node to list */
         int itr = 0;
@@ -389,7 +402,7 @@ static void* controlProcess(void* input)
         ++iter;
       }
     }
-#ifdef DATADEBUG
+#if 0
     /* until we are capable of sending control messages from program, use this to
      * test data thread */
     if(node_id == 1 && difftime(end, testMsg) * 1000 > 5)
@@ -437,7 +450,7 @@ int main(int argc, char **argv)
     adjContPorts.insert(adjacent_cont_ports[i]);
     adjHostnames.insert(adjacent_hostnames[i]);
     nodeDistances.insert(make_pair(adjacent_data_ports[i].first, 1));
-    routeNodes.insert(make_pair(adjacent_data_ports[i].first, node_id));
+    routeNodes.insert(make_pair(adjacent_data_ports[i].first, adjacent_data_ports[i].first));
 #ifdef CONTDEBUG
     printf("Adjacent Node: %d: hostname: %s, data port:%d, control port:%d\n", adjacent_data_ports[i].first,
         adjacent_hostnames[i].second.c_str(),
