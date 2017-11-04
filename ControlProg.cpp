@@ -37,14 +37,8 @@ int main(int argc, char **argv)
     cout << node_hostnames[i].first << " " << node_hostnames[i].second << endl;
   }
 
-  //int sd = createSock(input);
   struct sockaddr_in send_sock, send_data;
   struct sockaddr_in cont_sockaddr;
-  
-  ControlHeader header;
-  ControlData data;
-  
-  char data_packet[PACKET_SIZE_BYTES];
 
   memset(&cont_sockaddr, 0, sizeof(cont_sockaddr));
   cont_sockaddr.sin_family = AF_INET;
@@ -52,8 +46,12 @@ int main(int argc, char **argv)
   cont_sockaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
   int sd = createSock((void*)&cont_sockaddr);
-
   
+  ControlHeader header;
+  ControlData data;
+  
+  char data_packet[PACKET_SIZE_BYTES];
+
   while(1)
   {
     string input, command, unused_data;
@@ -87,7 +85,8 @@ int main(int argc, char **argv)
 
 	memcpy(&send_sock.sin_addr, hInfo->h_addr, hInfo->h_length);
 
-	//sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_data, sizeof(sockaddr));
+	cout << "heyo from controlprog" << endl;
+	sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_sock, sizeof(sockaddr));
 
       }
       else if(command == "create-link")
