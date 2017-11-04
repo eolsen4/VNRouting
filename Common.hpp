@@ -31,12 +31,14 @@ typedef struct ControlData
   char weights[((PACKET_SIZE_BYTES)/2)-2];
 
 } ControlData;
- 
+
+int createSock(void*);
 int getDataPort(std::string, int);
 int getContPort(std::string, int);
 std::string getHostname(std::string, int);
 std::vector<std::pair<int, int> > getAdjacentDataPorts(std::string, int);
 std::vector<std::pair<int, int> > getAdjacentContPorts(std::string, int);
 std::vector<std::pair<int, std::string> > getAdjacentHostnames(std::string, int);
-
+std::vector<std::pair<int, int> > getAllContPorts(std::string);
+std::vector<std::pair<int, std::string> > getAllHostnames(std::string);
 #endif

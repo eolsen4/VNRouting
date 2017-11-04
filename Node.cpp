@@ -67,24 +67,6 @@ int sendToNode;
 /* current packet id to send out */
 char pckt_id = 0;
 
-int createSock(void* input)
-{
-  /* cast input back to sockaddr */
-  struct sockaddr_in* sa = static_cast<struct sockaddr_in*>(input);
-
-  socklen_t size = sizeof(sockaddr);
-
-  /* create a datagram socket */
-  int retVal = socket(AF_INET, SOCK_DGRAM, 0);
-
-  /* if socket doesn't bind something went very wrong */
-  if(bind(retVal, (struct sockaddr*)sa, size) == -1){
-    perror("Error: bind function in createSocket function failed");
-    return -1;
-  }
-
-  return retVal;
-}
 
 static void* dataProcess(void* input)
 {

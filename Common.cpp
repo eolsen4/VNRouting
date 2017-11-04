@@ -1,12 +1,32 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <sys/socket.h>
 #include <string>
 #include <vector>
 
 #include "Common.hpp"
 
 using namespace std;
+
+int createSock(void* input)
+{
+  /* cast input back to sockaddr */
+  struct sockaddr_in* sa = static_cast<struct sockaddr_in*>(input);
+
+  socklen_t size = sizeof(sockaddr);
+
+  /* create a datagram socket */
+  int retVal = socket(AF_INET, SOCK_DGRAM, 0);
+
+  /* if socket doesn't bind something went very wrong */
+  if(bind(retVal, (struct sockaddr*)sa, size) == -1){
+    perror("Error: bind function in createSocket function failed");
+    return -1;
+  }
+
+  return retVal;
+}
 
 /* function to get the data port number for a specific node in the given file and node number */
 int getDataPort(string filename, int node){
@@ -194,4 +214,40 @@ vector<pair<int, string> > getAdjacentHostnames(string filename, int node){
     }
 
     return adj_hostnames;
+}
+
+
+vector<pair<int, int> > getAllContPorts(string filename){
+  string line;
+  ifstream file(filename.c_str());
+
+  vector<pair<int, int> > ports;
+  int node;
+  int cont_port;
+  string unused_data;
+
+  while(getline(file, line))
+  {
+    istringstream iss(line);
+    if(!(iss >> node >> unused_data >> cont_port)){ break; }
+    ports.push_back(pair<int, int>(node, cont_port));
+  }
+  return ports;
+}
+
+vector<pair<int, string> > getAllHostnames(string filename){
+  string line;
+  ifstream file(filename.c_str());
+
+  vector<pair<int, string> > hostnames;
+  int node;
+  string node_hostname;
+
+  while(getline(file, line))
+  {
+    istringstream iss(line);
+    if(!(iss >> node >> node_hostname)){ break; }
+    hostnames.push_back(pair<int, string>(node, node_hostname));
+  }
+  return hostnames;
 }
