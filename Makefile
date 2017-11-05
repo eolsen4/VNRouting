@@ -16,4 +16,4 @@ Common.o: Common.hpp Common.cpp
 	g++ -c -std=c++11 Common.cpp -o Common.o
 
 clean:
-	rm -rf *.o node
+	rm -rf *.o node controlProg

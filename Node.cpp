@@ -39,6 +39,9 @@ typedef struct Data
   char data[PACKET_SIZE_BYTES-sizeof(Header)];
 } Data;
 
+/* name of the input file */
+string filename;
+
 /* lock for critical sections of code */
 pthread_mutex_t dataLock;
 
@@ -117,7 +120,7 @@ static void* dataProcess(void* input)
       memcpy(&header, data_packet, sizeof(header));
       memcpy(&data, data_packet+sizeof(header), sizeof(data));
 
-      printf("data_packet from: %d\nDestined for:%d\n Arrived at:%d\n TTL:%d\n", header.src_id, header.dest_id, node_id, header.ttl);
+      printf("data_packet from: %d\nDestined for:%d\n Arrived at:%d\n Packed ID:%d\n TTL:%d\n", header.src_id, header.dest_id, node_id, header.pckt_id, header.ttl);
 
       if(header.dest_id == node_id)
       {
@@ -341,9 +344,39 @@ static void* controlProcess(void* input)
         }
         if(CTRL_MSG_CREATE_LINK == header.pkt_type)
         {
-          /* TODO: write functionality for creating a new link. Blocked by need
-           * for input parsing function */
+
+	  pthread_mutex_lock(&dataLock);
+
+	  int newNode = data.node_ids[0];
+	  
+	  adjDataPorts.insert(pair<int, int>(newNode, getDataPort(filename, newNode)));
+	  adjContPorts.insert(pair<int, int>(newNode, getContPort(filename, newNode)));
+	  adjHostnames.insert(pair<int, string>(newNode, getHostname(filename, newNode)));
+	  nodeDistances.insert(pair<int, int>(newNode, 1));
+	  routeNodes.insert(pair<int, int>(newNode, newNode));
+#ifdef CONTDEBUG
+	  printf("Adjacent Node: %d: hostname: %s, data port:%d, control port:%d\n", newNode,
+		 adjHostnames.at(newNode).c_str(),
+		 adjDataPorts.at(newNode),
+		 adjContPortsadj.at(newNode);
+#endif
+
+	  pthread_mutex_unlock(&dataLock);
         }
+	if(CTRL_MSG_REMOVE_LINK == header.pkt_type)
+	{
+	  pthread_mutex_lock(&dataLock);
+
+	  int removeNodeLink = data.node_ids[0];
+
+	  adjDataPorts.erase(removeNodeLink);
+	  adjContPorts.erase(removeNodeLink);
+	  adjHostnames.erase(removeNodeLink);
+	  nodeDistances.erase(removeNodeLink);
+	  routeNodes.erase(removeNodeLink);
+
+	  pthread_mutex_unlock(&dataLock);
+	}
       }
     }
 
@@ -431,7 +464,7 @@ int main(int argc, char **argv)
   /* TODO: input parsing to actually fill the sockaddr structs */
   struct sockaddr_in data_sockaddr, cont_sockaddr;
 
-  string filename = argv[1];
+  filename = argv[1];
   node_id = atoi(argv[2]);
 
   /* retrieves the current node's hostname, control port, and data port */

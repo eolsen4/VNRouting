@@ -101,11 +101,103 @@ int main(int argc, char **argv)
       }
       else if(command == "create-link")
       {
+	/* send packet to first node about new link */
+	memset(data_packet, 0, PACKET_SIZE_BYTES);
+	header.pkt_type = CTRL_MSG_CREATE_LINK;
+	data.node_ids[0] = node2;
 
+	send_sock.sin_family = AF_INET;
+	send_sock.sin_port = htons(ports.at(node1));
+
+#ifdef CONTDEBUG
+	printf("node1: %d, port: %d\n", node1, ports.at(node1));
+#endif
+
+	struct hostent* hInfo1 = gethostbyname(hostnames.at(node1).c_str());
+
+	memcpy(&send_sock.sin_addr, hInfo1->h_addr, hInfo1->h_length);
+
+	memset(data_packet, 0, PACKET_SIZE_BYTES);
+	memcpy(data_packet, &header, sizeof(header));
+	memcpy(data_packet+sizeof(header), &data, sizeof(data));
+
+
+	sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_sock, sizeof(sockaddr));
+
+	
+	/* send packet to second node about new link */
+	memset(data_packet, 0, PACKET_SIZE_BYTES);
+	header.pkt_type = CTRL_MSG_CREATE_LINK;
+	data.node_ids[0] = node1;
+
+	send_sock.sin_family = AF_INET;
+	send_sock.sin_port = htons(ports.at(node2));
+
+#ifdef CONTDEBUG
+	printf("node2: %d, port: %d\n", node2, ports.at(node2));
+#endif
+
+	struct hostent* hInfo2 = gethostbyname(hostnames.at(node2).c_str());
+
+	memcpy(&send_sock.sin_addr, hInfo2->h_addr, hInfo2->h_length);
+
+	memset(data_packet, 0, PACKET_SIZE_BYTES);
+	memcpy(data_packet, &header, sizeof(header));
+	memcpy(data_packet+sizeof(header), &data, sizeof(data));
+
+
+	sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_sock, sizeof(sockaddr));
+	
       }
       else if(command == "remove-link")
       {
+        /* send packet to first node about removing link */
+	memset(data_packet, 0, PACKET_SIZE_BYTES);
+	header.pkt_type = CTRL_MSG_REMOVE_LINK;
+	data.node_ids[0] = node2;
 
+	send_sock.sin_family = AF_INET;
+	send_sock.sin_port = htons(ports.at(node1));
+
+#ifdef CONTDEBUG
+	printf("node1: %d, port: %d\n", node1, ports.at(node1));
+#endif
+
+	struct hostent* hInfo1 = gethostbyname(hostnames.at(node1).c_str());
+
+	memcpy(&send_sock.sin_addr, hInfo1->h_addr, hInfo1->h_length);
+
+	memset(data_packet, 0, PACKET_SIZE_BYTES);
+	memcpy(data_packet, &header, sizeof(header));
+	memcpy(data_packet+sizeof(header), &data, sizeof(data));
+
+
+	sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_sock, sizeof(sockaddr));
+
+
+	/* send packet to second node about removing link */
+	memset(data_packet, 0, PACKET_SIZE_BYTES);
+	header.pkt_type = CTRL_MSG_REMOVE_LINK;
+	data.node_ids[0] = node1;
+
+	send_sock.sin_family = AF_INET;
+	send_sock.sin_port = htons(ports.at(node2));
+
+	#ifdef CONTDEBUG
+	printf("node2: %d, port: %d\n", node2, ports.at(node2));
+	#endif
+
+	struct hostent* hInfo2 = gethostbyname(hostnames.at(node2).c_str());
+
+	memcpy(&send_sock.sin_addr, hInfo2->h_addr, hInfo2->h_length);
+
+	memset(data_packet, 0, PACKET_SIZE_BYTES);
+	memcpy(data_packet, &header, sizeof(header));
+	memcpy(data_packet+sizeof(header), &data, sizeof(data));
+
+
+	sendto(sd, (const void*)data_packet, PACKET_SIZE_BYTES, 0, (struct sockaddr*)&send_sock, sizeof(sockaddr));
+	
       }
       else /* needs to give a valid request */
       {
