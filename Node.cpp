@@ -319,6 +319,16 @@ static void* controlProcess(void* input)
             routeNodes.insert(pair<int,int>(temp_id, rec_id));
             nodeDistances.insert(pair<int,int>(temp_id, data.weights[itr]+1));
           }
+	  else if(data.weights[itr] == -1 && rec_id == routeNodes.find(temp_id)->second)
+	  {
+	    routeNodes.at(temp_id) = -1;
+	    nodeDistances.at(temp_id) = -1;
+	  }
+	  else if(routeNodes.find(temp_id)->second == -1 && data.weights[itr] != -1)
+	  {
+	    routeNodes.at(temp_id) = rec_id;
+	    nodeDistances.at(temp_id) = data.weights[itr] + 1;
+	  }
           else if(rec_id == routeNodes.find(temp_id)->second || 
               (data.weights[itr]+1) < nodeDistances.find(temp_id)->second)
           {
@@ -358,7 +368,7 @@ static void* controlProcess(void* input)
 	  printf("Adjacent Node: %d: hostname: %s, data port:%d, control port:%d\n", newNode,
 		 adjHostnames.at(newNode).c_str(),
 		 adjDataPorts.at(newNode),
-		 adjContPortsadj.at(newNode);
+		 adjContPorts.at(newNode));
 #endif
 
 	  pthread_mutex_unlock(&dataLock);
@@ -372,8 +382,8 @@ static void* controlProcess(void* input)
 	  adjDataPorts.erase(removeNodeLink);
 	  adjContPorts.erase(removeNodeLink);
 	  adjHostnames.erase(removeNodeLink);
-	  nodeDistances.erase(removeNodeLink);
-	  routeNodes.erase(removeNodeLink);
+	  nodeDistances.at(removeNodeLink) = -1;
+	  routeNodes.at(removeNodeLink) = -1;
 
 	  pthread_mutex_unlock(&dataLock);
 	}

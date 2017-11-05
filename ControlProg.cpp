@@ -17,15 +17,16 @@ map<int, string> hostnames;
 
 int main(int argc, char **argv)
 {
+  /* check that there are two arguments only */
   if(argc != 2)
   {
     cout << "USAGE: " << argv[0] << " <input file path>" << endl;
     return -1;
   }
-  /* TODO Read in port/address info for each Node in network */
 
   string filename = argv[1];
 
+  /* obtain all of the control ports and hostnames of the network */
   vector<pair<int, int> > control_ports = getAllContPorts(filename);
   vector<pair<int, string> > node_hostnames = getAllHostnames(filename);
 
@@ -39,9 +40,11 @@ int main(int argc, char **argv)
 #endif
   }
 
-  struct sockaddr_in send_sock, send_data;
+  
+  struct sockaddr_in send_sock;
   struct sockaddr_in cont_sockaddr;
 
+  /* create socket for the control client */
   memset(&cont_sockaddr, 0, sizeof(cont_sockaddr));
   cont_sockaddr.sin_family = AF_INET;
   cont_sockaddr.sin_port = htons(0);
@@ -68,7 +71,7 @@ int main(int argc, char **argv)
     {
       cout << "Command should be given as: <command> <node #1> <node #2>" << endl;
     }
-    else if(iss >> unused_data)    /* there shouldn't be more arguments */
+    else if(iss >> unused_data)    /* there shouldn't be more than 3 arguments */
     {
       cout << "Command should be given as: <command> <node #1> <node #2>" << endl;
     }
@@ -76,6 +79,7 @@ int main(int argc, char **argv)
     {
       if(command == "generate-packet")
       {
+	/* send packet/message to first node about generating packet to the second node */
         memset(data_packet, 0, PACKET_SIZE_BYTES);
         header.pkt_type = CTRL_MSG_SEND_PCKT;
         data.node_ids[0] = node2;
