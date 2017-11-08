@@ -22,8 +22,6 @@
 
 using namespace std;
 
-/* TODO Create control program to drive nodes */
-
 /* packet header struct */
 typedef struct Header
 {
@@ -471,7 +469,6 @@ int main(int argc, char **argv)
   /* init semaphore for requesting new data message */
   pthread_mutex_init(&dataLock, NULL);
 
-  /* TODO: input parsing to actually fill the sockaddr structs */
   struct sockaddr_in data_sockaddr, cont_sockaddr;
 
   filename = argv[1];
