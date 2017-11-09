@@ -1,0 +1,11 @@
+Tasks:
+
+Eric Olsen:
+	- Distance Vector Routing
+	- Send/Recieve messages from node
+	- General Debugging
+
+Monika Roznier:
+	- Control Program
+	- Node-side code to create/remove links
+	- General Debugging
